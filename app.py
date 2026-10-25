@@ -210,8 +210,23 @@ async def mailroom(request: Request):
         if len(canonical(answer)) > 512 * 1024:
             raise HTTPException(status_code=503, detail='Response exceeds limit')
         return JSONResponse(content=answer, status_code=200)
-    except StorageError:
-        raise HTTPException(status_code=503, detail='Persistent database unavailable')
+    except StorageError as exc:
+        cause = exc.__cause__
+        response = getattr(cause, "response", None)
+        http_status = getattr(response, "status_code", None)
+
+        print(
+            "UPSTASH_DIAG:",
+            "error_type=", type(exc).__name__,
+            "cause_type=", type(cause).__name__ if cause else "none",
+            "http_status=", http_status,
+            flush=True
+        )
+
+        raise HTTPException(
+            status_code=503,
+            detail="Persistent database unavailable"
+        )
     except DecisionError:
         raise HTTPException(status_code=503, detail='Model decisions unavailable or invalid')
 
